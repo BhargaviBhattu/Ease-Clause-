@@ -27,20 +27,42 @@ st.markdown(
 # ---------------------------
 @st.cache_resource
 def load_abstractive_model():
+    """
+    Load and cache the BART model for abstractive summarization.
+    Returns the tokenizer and model from Hugging Face's Transformers library."""
     model_name = "facebook/bart-large-cnn"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model.eval()  # ensure model is in inference mode for efficiency
     return tokenizer, model
 
 abst_tokenizer, abst_model = load_abstractive_model()
 
 # ---------------------------
-# Abstractive summarization
+# Abstractive summarization (Purvesh's contribution)
 # ---------------------------
 def abstractive_summarize(text: str, max_length: int = 130, min_length: int = 30) -> str:
+    """
+    Generate a human-like abstractive summary using the BART model.
+    Follows a 4-step pipeline:
+        1. Preprocess input text
+        2. Pass text through pre-trained BART CNN model
+        3. Generate and decode summary
+        4. Postprocess for readability
+    """
+    
     if not text.strip():
-        return "Please provide text to summarize."
-    inputs = abst_tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
+        return " ⚠️ Please provide text to summarize."
+    
+    # Preprocessing
+    inputs = abst_tokenizer(
+        text,
+        return_tensors="pt", 
+        max_length=1024, 
+        truncation=True,
+        )
+
+    # Summary generation
     summary_ids = abst_model.generate(
         **inputs,
         max_length=max_length,
