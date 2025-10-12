@@ -103,7 +103,8 @@ if st.button("🔍 Simplify Text"):
         # Highlight glossary terms in original text
         highlighted_text = highlight_terms(final_text, glossary)
 
-        # Display Results
+        # Display Output Columns — Contribution by Purvesh Patel
+        # This section shows original and simplified text side by side
         col1, col2 = st.columns(2)
 
         with col1:
