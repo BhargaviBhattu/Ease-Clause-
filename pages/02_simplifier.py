@@ -63,7 +63,8 @@ st.markdown("### 📝 Input Options")
 text_input = st.text_area(
     "Paste or type your text below:",
     placeholder="Enter your text here...",
-    height=200
+    height=200,
+    width=800
 )
 
 # File upload
@@ -98,23 +99,32 @@ final_text = (text_input.strip() or extracted_text.strip())
 if st.button("🔍 Simplify Text"):
     if final_text:
         with st.spinner("Simplifying... Please wait ⏳"):
-            simplified_output = simplify_text(final_text, level)
+            try:
+                simplified_output = simplify_text(final_text, level)
+            except Exception as e:
+                st.error(f"Error in simplify_text(): {e}")
+                simplified_output = None
 
-        # Highlight glossary terms in original text
-        highlighted_text = highlight_terms(final_text, glossary)
+        # DEBUG: show raw simplified output (helps see if model echoed input)
+        if simplified_output is None:
+            st.error("Simplification failed. Check logs.")
+        else:
+            st.caption("DEBUG: raw simplified output (for developers)")
+            st.code(simplified_output[:500])  # show first 500 chars
 
-        # Display Output Columns — Contribution by Purvesh Patel
-        # This section shows original and simplified text side by side
-        col1, col2 = st.columns(2)
+            # Highlight glossary terms in original text
+            highlighted_text = highlight_terms(final_text, glossary)
 
-        with col1:
-            st.markdown("<div class='title'>📄 Original Text</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='output-box'>{highlighted_text}</div>", unsafe_allow_html=True)
+            # Display Output Columns
+            col1, col2 = st.columns(2)
 
-        with col2:
-            st.markdown(f"<div class='title'>🔹 Simplified Text ({level} Level)</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='output-box'>{simplified_output}</div>", unsafe_allow_html=True)
+            with col1:
+                st.markdown("<div class='title'>📄 Original Text</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='output-box'>{highlighted_text}</div>", unsafe_allow_html=True)
+
+            with col2:
+                st.markdown(f"<div class='title'>🔹 Simplified Text ({level} Level)</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='output-box'>{simplified_output}</div>", unsafe_allow_html=True)
 
     else:
         st.warning("⚠️ Please enter text or upload a document before simplifying.")
-
