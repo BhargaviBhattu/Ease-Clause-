@@ -1,140 +1,78 @@
-# simplifier.py
-import re
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import sent_tokenize, word_tokenize
+# utils/simplifier.py
 
-# ---------------------------
-# NLTK setup
-# ---------------------------
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
-STOPWORDS = set(stopwords.words('english'))
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from functools import lru_cache
 
-# ---------------------------
-# Common replacements
-# ---------------------------
-COMMON_REPLACEMENTS = {
-    "utilize": "use",
-    "commence": "start",
-    "terminate": "end",
-    "endeavor": "try",
-    "assistance": "help",
-    "individuals": "people",
-    "approximately": "about",
-    "purchase": "buy",
-    "objective": "goal",
-    "requirement": "need",
-    "consequently": "so",
-    "therefore": "so",
-    "subsequently": "after",
-    "nevertheless": "but",
-    "furthermore": "also",
-    "in addition": "also",
-    "in order to": "to",
-    "in the event that": "if",
-    "in accordance with": "under",
-    "hereinafter": "from now on",
-    "aforementioned": "mentioned earlier",
-    "pursuant to": "under",
-    "in witness whereof": "to confirm this",
+
+# -----------------------------
+# Model configuration
+# -----------------------------
+MODEL_NAME = "google/flan-t5-base"
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+# -----------------------------
+# Instruction prompts
+# -----------------------------
+PROMPTS = {
+    "Basic": (
+        "Rewrite the following text in very simple English. "
+        "Use very short sentences and basic words.\n\n"
+    ),
+    "Intermediate": (
+    "Rewrite the following legal text for a non-lawyer. "
+    "Remove legal phrasing and formal tone. "
+    "It is okay if some details are shortened, as long as the main meaning remains.\n\n"
+    ),
+
+    
+    "Advanced": (
+        "Rewrite the following text in a much shorter and simpler form. "
+        "Keep only the main ideas.\n\n"
+    ),
 }
 
-# ---------------------------
-# T5 Model
-# ---------------------------
-MODEL_NAME = "t5-small"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
-# ---------------------------
-# Utility functions
-# ---------------------------
-def clean_and_join(sentences):
-    sentences = [s.strip().capitalize() for s in sentences if s.strip()]
-    return ". ".join(sentences).strip()
-
-def apply_replacements(text, replacements):
-    for key, val in replacements.items():
-        text = re.sub(rf"\b{key}\b", val, text, flags=re.IGNORECASE)
-    return text
-
-# ---------------------------
-# Level-specific simplifiers
-# ---------------------------
-def basic_simplify(text: str) -> str:
-    """Removes common stopwords to make text more direct."""
-    sentences = sent_tokenize(text)
-    simplified = []
-    for s in sentences:
-        words = word_tokenize(s)
-        filtered = [w for w in words if w.lower() not in STOPWORDS]
-        simplified.append(" ".join(filtered))
-    return clean_and_join(simplified)
-
-def intermediate_simplify(text: str) -> str:
-    """Replaces complex words with common synonyms."""
-    return apply_replacements(text, COMMON_REPLACEMENTS)
-
-def advanced_simplify(text: str) -> str:
-    """Applies multiple layers of replacements and sentence compression."""
-    text = intermediate_simplify(text)
-    
-    deep_replacements = {
-        r"\bthe party of the first part\b": "first person",
-        r"\bthe party of the second part\b": "second person",
-        r"\bshall\b": "will",
-        r"\bmust\b": "has to",
-        r"\bprior to\b": "before",
-        r"\bat this point in time\b": "now",
-    }
-    text = apply_replacements(text, deep_replacements)
-
-    sentences = sent_tokenize(text)
-    compressed = []
-    for s in sentences:
-        if len(s.split()) > 20:
-            s = " ".join(s.split()[:15]) + "..."
-        compressed.append(s)
-    return clean_and_join(compressed)
-
-# ---------------------------
-# T5 simplification (optional, better readability)
-# ---------------------------
-PREFIXES = {
-    "Basic": "Simplify for a beginner reader: ",
-    "Intermediate": "Simplify and clarify: ",
-    "Advanced": "Simplify, compress and shorten: "
-}
-
-def simplify_text(text: str, level: str) -> str:
-    if not text.strip():
-        return "Please enter text to simplify."
-
-    # Step 1: Rule-based simplification
-    if level == "Basic":
-        rule_text = basic_simplify(text)
-    elif level == "Intermediate":
-        rule_text = intermediate_simplify(text)
-    elif level == "Advanced":
-        rule_text = advanced_simplify(text)
-    else:
-        rule_text = text
-
-    # Step 2: T5 model
-    prefix = PREFIXES.get(level, "")
-    input_text = prefix + rule_text
-    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
-    
-    if level == "Advanced":
-        outputs = model.generate(**inputs, max_length=150, num_beams=5, early_stopping=True)
-    else:
-        outputs = model.generate(**inputs, max_length=512, num_beams=4)
-        
-    simplified = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    return simplified
+# -----------------------------
+# Load model (cached)
+# -----------------------------
+@lru_cache(maxsize=1)
+def load_model():
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    model.to(DEVICE)
+    model.eval()
+    return tokenizer, model
 
 
+# -----------------------------
+# Simplification function
+# -----------------------------
+def simplify_text(text: str, level: str = "Intermediate") -> str:
+    if not text or not text.strip():
+        return ""
 
+    tokenizer, model = load_model()
+
+    prompt = PROMPTS.get(level, PROMPTS["Intermediate"]) + text
+
+    inputs = tokenizer(
+        prompt,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512
+    ).to(DEVICE)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=160,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            num_beams=1,
+        )
+
+    result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return result.strip()

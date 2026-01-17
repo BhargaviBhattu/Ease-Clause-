@@ -1,8 +1,3 @@
-# pages/Auth.py
-# -------------------------------------------------------------
-# User Login Page
-# -------------------------------------------------------------
-
 import streamlit as st
 import backend # Import the new backend module
 import bcrypt # Needed for password hashing, used in app.py

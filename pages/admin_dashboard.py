@@ -2,7 +2,7 @@
 import streamlit as st
 from backend import (
     get_all_users,
-    get_user_logs,
+    # get_user_logs,
     get_user_documents,
     verify_user,
     is_admin,

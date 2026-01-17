@@ -3,7 +3,6 @@
 import sqlite3
 import bcrypt
 from datetime import datetime
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 DB_PATH = "users.db"
 
@@ -28,18 +27,6 @@ def init_db():
             email TEXT UNIQUE,
             password BLOB,
             is_admin INTEGER DEFAULT 0
-        )
-    """)
-
-    # Simplifications table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS simplifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT,
-            level TEXT,
-            original_text TEXT,
-            simplified_text TEXT,
-            timestamp TEXT
         )
     """)
 
@@ -110,43 +97,6 @@ def update_password(email, new_password):
     conn.execute("UPDATE users SET password=? WHERE email=?", (hashed, email))
     conn.commit()
     conn.close()
-
-# -----------------------------
-# Multi-Level Simplification (T5 model)
-# -----------------------------
-model_name = "t5-small"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-
-def simplify_text(text, level):
-    prefix = {"Basic": "simplify: ", "Intermediate": "simplify: ", "Advanced": "simplify: "}.get(level, "simplify: ")
-    inputs = tokenizer(prefix + text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(**inputs, max_length=512, num_beams=4)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-# -----------------------------
-# Logging simplifications
-# -----------------------------
-def log_simplification(user_email, level, original_text, simplified_text):
-    conn = get_conn()
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute(
-        "INSERT INTO simplifications (user_email, level, original_text, simplified_text, timestamp) VALUES (?, ?, ?, ?, ?)",
-        (user_email, level, original_text, simplified_text, timestamp)
-    )
-    conn.commit()
-    conn.close()
-
-def get_user_logs(user_email):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT level, original_text, simplified_text, timestamp FROM simplifications WHERE user_email=? ORDER BY timestamp DESC",
-        (user_email,)
-    )
-    logs = cur.fetchall()
-    conn.close()
-    return logs
 
 # -----------------------------
 # Document functions
