@@ -109,8 +109,7 @@ if st.button("🔍 Simplify Text"):
         if simplified_output is None:
             st.error("Simplification failed. Check logs.")
         else:
-            st.caption("DEBUG: raw simplified output (for developers)")
-            st.code(simplified_output[:500])  # show first 500 chars
+            
 
             # Highlight glossary terms in original text
             highlighted_text = highlight_terms(final_text, glossary)

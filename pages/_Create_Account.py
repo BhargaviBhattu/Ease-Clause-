@@ -1,18 +1,8 @@
-# pages/_Create_Account.py
-# -------------------------------------------------------------
-# User Registration Page (Hidden from sidebar)
-# -------------------------------------------------------------
-
 import streamlit as st
 import backend # Import the new backend module
-import bcrypt # Needed for password hashing, used in app.py
-
 # ---------------------------
 # UI
 # ---------------------------
-# Initialize the database from the backend module
-backend.init_db()
-
 st.set_page_config(
     page_title="Create an Account",
     layout="wide"
